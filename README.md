@@ -17,3 +17,4 @@ NPV/IRR (5 & 10 year), Accept/Reject verdict, and cashflow charts.
 - Expected clawback = rate × $ at risk, spread over first 24 months
 - IRR solved on monthly cashflows, annualised (effective) — equivalent to XIRR
 - Breakeven = month cumulative net cashflow turns positive and stays positive
+
