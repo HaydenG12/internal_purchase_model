@@ -478,17 +478,20 @@ function drawBuild(T0,roLine,arLine,net,cbMonthly){
     labels+='<text x="'+X(Math.max(1,yr*12))+'" y="'+(Hc-10)+'" text-anchor="middle" font-size="10" fill="#9A9A9A">'+(yr===0?"Yr 0":yr)+"</text>";
   }
   $("chart2").innerHTML='<svg viewBox="0 0 '+W+" "+Hc+'" xmlns="http://www.w3.org/2000/svg">'+svg+labels+"</svg>";
-  /* legend with 9-yr totals */
-  let lostRO=0,lostAR=0,lostCB=0,coll=0;
-  for(let m=1;m<=H;m++){lostRO+=T0-roLine[m];lostAR+=roLine[m]-arLine[m];lostCB+=arLine[m]-net[m];coll+=net[m];}
-  const pot=T0*H;
-  const row=(sw,lbl,amt)=>'<div class="mrow"><span class="mlbl"><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:'+sw+';margin-right:7px;vertical-align:-1px"></span>'+lbl+'</span><span class="mval">'+fmt0(amt)+' <span style="color:var(--faint);font-weight:500">('+(amt/pot*100).toFixed(1)+'%)</span></span></div>';
+  /* per-year breakdown table */
+  const sw=c=>'<span style="display:inline-block;width:9px;height:9px;border-radius:3px;background:'+c+';margin-right:5px;vertical-align:0"></span>';
+  let body="",lostRO=0,lostAR=0,lostCB=0,coll=0;
+  for(let y=1;y<=10;y++){
+    let ro=0,ar=0,cb=0,co=0;
+    for(let m=(y-1)*12+1;m<=y*12;m++){ro+=T0-roLine[m];ar+=roLine[m]-arLine[m];cb+=arLine[m]-net[m];co+=net[m];}
+    lostRO+=ro;lostAR+=ar;lostCB+=cb;coll+=co;
+    body+="<tr><td>Yr "+y+"</td><td>"+fmt0(co)+"</td><td>"+fmt0(ro)+"</td><td>"+fmt0(ar)+"</td><td>"+fmt0(cb)+"</td></tr>";
+  }
+  const pot=T0*H, pc=v=>' <span style="color:var(--faint);font-weight:500">('+(v/pot*100).toFixed(1)+'%)</span>';
+  body+='<tr style="font-weight:600"><td>Total</td><td>'+fmt0(coll)+pc(coll)+"</td><td>"+fmt0(lostRO)+pc(lostRO)+"</td><td>"+fmt0(lostAR)+pc(lostAR)+"</td><td>"+fmt0(lostCB)+pc(lostCB)+"</td></tr>";
   $("leg2").innerHTML=
-    row("#F8ECCB","Trail collected (net, 10 yrs)",coll)+
-    row("#F1CDBF","Lost to run-off",lostRO)+
-    row("#C8DFF0","Lost to arrears",lostAR)+
-    row("#E5A899","Lost to clawback",lostCB)+
-    '<div class="hint" style="margin-top:6px">Dashed line = starting trail held flat (no losses). Gold line = what you actually collect each month. % of 10-year gross potential ('+fmt0(pot)+').</div>';
+    '<div style="overflow-x:auto"><table class="yr"><thead><tr><th>Year</th><th>'+sw("#F8ECCB")+'Collected (net)</th><th>'+sw("#F1CDBF")+'Run-off</th><th>'+sw("#C8DFF0")+'Arrears</th><th>'+sw("#E5A899")+'Clawback</th></tr></thead><tbody>'+body+"</tbody></table></div>"+
+    '<div class="hint" style="margin-top:6px">Dashed line = starting trail held flat (no losses). Gold line = what you actually collect each month. Total % = share of 10-year gross potential ('+fmt0(pot)+').</div>';
 }
 
 function verdict(boxId,txtId,irr,hurdle){
