@@ -195,7 +195,7 @@ table.yr td.pos{color:var(--green)}
         <div class="err" id="e-rr"></div>
       </div>
     </div>
-    <div class="hint">Purchase price = trail &divide; days in trail month &times; 365 &times; multiple. IRR must beat the required return to Accept.</div>
+    <div class="hint">Purchase price = trail &divide; days in trail month &times; 365 &times; multiple. Accept = NPV positive when discounted at the required return.</div>
   </div>
 
   <div class="sec-label"><span class="sec-num">3</span><span class="sec-title">Payment Structure</span></div>
@@ -319,7 +319,9 @@ table.yr td.pos{color:var(--green)}
     $ at risk of clawback = 100% of upfronts on loans &lt;12 months old + 50% of upfronts 12&ndash;24 months old.
     Expected clawback (rate &times; $ at risk) is deducted evenly across the first 24 months.
     NPV discounts monthly cashflows at the required return / 12. IRR is solved on monthly
-    cashflows and annualised (effective). Breakeven is the month cumulative net cashflow
+    cashflows and annualised (effective); with instalment structures the cashflow changes sign
+    more than once and IRR can be ambiguous, so the Accept/Reject verdict is based on NPV &gt; 0
+    at the required return. Breakeven is the month cumulative net cashflow
     turns positive and stays positive. Model horizon 10 years (120 months).
   </div>
 </div>
@@ -446,7 +448,7 @@ function calc(){
   else{const [by,bm]=monthAdd(sy,smm,be);$("r-be").textContent=be+" mo";$("r-be-sub").textContent=monthLabel(by,bm);}
   $("r-npv5").textContent=fmt0(npv5); $("r-npv9").textContent=fmt0(npv9);
   $("r-irr5").textContent=fmtP(irr5); $("r-irr9").textContent=fmtP(irr9);
-  verdict("r-v5","r-v5t",irr5,rr/100); verdict("r-v9","r-v9t",irr9,rr/100);
+  verdict("r-v5","r-v5t",npv5); verdict("r-v9","r-v9t",npv9);
 
   /* ---- payment schedule ---- */
   $("sched").innerHTML=sched.map(({m,frac})=>{
@@ -516,10 +518,9 @@ function drawBuild(T0,roLine,arLine,net,pay){
     '<div class="hint" style="margin-top:6px">Dashed line = starting trail held flat (no losses). Gold line = what you actually collect each month. Payments appear in the year they fall due under the selected payment option. Total % = share of 10-year gross potential ('+fmt0(pot)+').</div>';
 }
 
-function verdict(boxId,txtId,irr,hurdle){
+function verdict(boxId,txtId,npvVal){
   const box=$(boxId),txt=$(txtId);
-  if(irr==null){box.className="verdict";txt.textContent="n/a";return;}
-  const acc=irr>hurdle;
+  const acc=npvVal>0;
   box.className="verdict "+(acc?"v-accept":"v-reject");
   txt.textContent=acc?"Accept ✓":"Reject ✗";
 }
