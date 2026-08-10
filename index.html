@@ -136,6 +136,7 @@ table.yr td.pos{color:var(--green)}
         <option value="0" selected>Excl. GST</option>
         <option value="1">Incl. GST (+10%)</option>
       </select>
+      <div class="hint">Incl. GST grosses up every $ figure entered (trail, custom $ payments, clawback $) by 10% across all calculations.</div>
     </div>
     <div class="g2">
       <div class="field">
@@ -269,7 +270,7 @@ table.yr td.pos{color:var(--green)}
         <div class="field"><label for="o5m3">Month</label><input type="number" id="o5m3" value="24" min="0" max="120" step="1"></div>
         <div class="field"><label for="o5a3">Amount ($)</label><input type="number" id="o5a3" value="0" min="0" step="5000"></div>
       </div>
-      <div class="hint" style="margin-top:6px">Purchase price = sum of the amounts. The multiple input is ignored; the implied multiple is shown in the summary.</div>
+      <div class="hint" style="margin-top:6px">Purchase price = sum of the amounts. The multiple input is ignored; the implied multiple is shown in the summary. Amounts are entered excl. GST &mdash; the GST toggle grosses them up with everything else.</div>
       <div class="err" id="e-o5"></div>
     </div>
   </div>
@@ -335,7 +336,8 @@ table.yr td.pos{color:var(--green)}
   </details>
 
   <div class="foot-note">
-    <b>Method.</b> Purchase price = monthly trail (GST-adjusted) &divide; days in trail month &times; 365 &times; multiple.
+    <b>Method.</b> All $ inputs are entered excl. GST; selecting Incl. GST grosses trail, payments and
+    clawback $ up by 10% consistently. Purchase price = monthly trail (GST-adjusted) &divide; days in trail month &times; 365 &times; multiple.
     Trail decays monthly at run-off/12 from settlement, reduced by arrears %.
     $ at risk of clawback = 100% of upfronts on loans &lt;12 months old + 50% of upfronts 12&ndash;24 months old.
     Expected clawback (rate &times; $ at risk) is deducted evenly across the first 24 months.
@@ -369,8 +371,10 @@ const RO_BANDS=[[5,"Excellent","b-good"],[10,"Very good","b-good"],[15,"Average"
 const AR_BANDS=[[0.3,"Excellent","b-good"],[0.6,"Very good","b-good"],[0.9,"Good","b-good"],[1.2,"OK","b-mid"],[1.5,"Poor","b-bad"],[Infinity,"Alert","b-bad"]];
 const CB_BANDS=[[3,"Excellent","b-good"],[6,"Very good","b-good"],[9,"Good","b-good"],[12,"OK","b-mid"],[15,"Poor","b-bad"],[Infinity,"Alert","b-bad"]];
 
-/* ---- payment schedule builders: return {price, pays:[{m,amt}]} or {err} ---- */
-function buildSchedule(basePrice){
+/* ---- payment schedule builders: return {price, pays:[{m,amt}]} or {err} ----
+   gstF grosses up option 5's entered $ amounts; options 1-4 inherit GST via basePrice */
+function buildSchedule(basePrice,gstF){
+  gstF=gstF||1;
   const sel=document.querySelector("input[name=popt]:checked").value;
   ["e-o1","e-o2","e-o3","e-o4","e-o5"].forEach(id=>$(id).textContent="");
   const fromFracs=fr=>({price:basePrice,pays:fr.map(x=>({m:x.m,amt:basePrice*x.frac}))});
@@ -404,8 +408,8 @@ function buildSchedule(basePrice){
   if(!(tot>0)){$("e-o5").textContent="Enter at least one $ amount";return {err:1};}
   for(const [m,a] of rows) if(a>0&&(m<0||m>H||isNaN(m))){$("e-o5").textContent="Months must be 0–120";return {err:1};}
   const merged={};
-  rows.filter(r=>r[1]>0).forEach(([m,a])=>{merged[m]=(merged[m]||0)+a;});
-  return {price:tot,pays:Object.entries(merged).map(([m,amt])=>({m:+m,amt})).sort((x,y)=>x.m-y.m)};
+  rows.filter(r=>r[1]>0).forEach(([m,a])=>{merged[m]=(merged[m]||0)+a*gstF;});
+  return {price:tot*gstF,pays:Object.entries(merged).map(([m,amt])=>({m:+m,amt})).sort((x,y)=>x.m-y.m)};
 }
 
 /* ---- financial helpers ---- */
@@ -448,10 +452,10 @@ function calc(){
   const T0=tr*gstF;
   const dim=new Date(py,pmm,0).getDate(); // days in trail month
   const annTrail=T0/dim*365;
-  const bs=buildSchedule(annTrail*mu);
+  const bs=buildSchedule(annTrail*mu,gstF);
   if(bs.err){eb.textContent="Fix the highlighted inputs to see results.";eb.classList.add("show");return;}
   const price=bs.price;
-  const cbMonthly=(cb/100)*cbr/CB_MONTHS;
+  const cbMonthly=(cb/100)*(cbr*gstF)/CB_MONTHS;
 
   /* monthly engine */
   const pay=new Array(H+1).fill(0);
