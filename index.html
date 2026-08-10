@@ -465,11 +465,11 @@ function calc(){
   $("yr-body").innerHTML=rows;
 
   drawChart(cum,be,sy,smm);
-  drawBuild(T0,roLine,arLine,trail,cbMonthly);
+  drawBuild(T0,roLine,arLine,trail,pay);
 }
 
 /* stacked-wedge chart: gross potential at top, wedges for run-off / arrears / clawback, net collected below */
-function drawBuild(T0,roLine,arLine,net,cbMonthly){
+function drawBuild(T0,roLine,arLine,net,pay){
   const W=720,Hc=240,padL=70,padR=16,padT=14,padB=30;
   const lo=Math.min(0,...net.slice(1)), hi=T0;
   const span=(hi-lo)||1;
@@ -497,20 +497,23 @@ function drawBuild(T0,roLine,arLine,net,cbMonthly){
     labels+='<text x="'+X(Math.max(1,yr*12))+'" y="'+(Hc-10)+'" text-anchor="middle" font-size="10" fill="#9A9A9A">'+(yr===0?"Yr 0":yr)+"</text>";
   }
   $("chart2").innerHTML='<svg viewBox="0 0 '+W+" "+Hc+'" xmlns="http://www.w3.org/2000/svg">'+svg+labels+"</svg>";
-  /* per-year breakdown table */
+  /* per-year breakdown table incl. payments, net & cumulative */
   const sw=c=>'<span style="display:inline-block;width:9px;height:9px;border-radius:3px;background:'+c+';margin-right:5px;vertical-align:0"></span>';
-  let body="",lostRO=0,lostAR=0,lostCB=0,coll=0;
+  const cls=v=>v<0?"neg":"pos";
+  let body="",lostRO=0,lostAR=0,lostCB=0,coll=0,payTot=pay[0],running=-pay[0];
+  body+='<tr><td>Settlement</td><td>$0</td><td>&ndash;</td><td>&ndash;</td><td>&ndash;</td><td>'+(pay[0]>0?fmt0(-pay[0]):"$0")+'</td><td class="'+cls(-pay[0])+'">'+fmt0(-pay[0])+'</td><td class="'+cls(running)+'">'+fmt0(running)+"</td></tr>";
   for(let y=1;y<=10;y++){
-    let ro=0,ar=0,cb=0,co=0;
-    for(let m=(y-1)*12+1;m<=y*12;m++){ro+=T0-roLine[m];ar+=roLine[m]-arLine[m];cb+=arLine[m]-net[m];co+=net[m];}
-    lostRO+=ro;lostAR+=ar;lostCB+=cb;coll+=co;
-    body+="<tr><td>Yr "+y+"</td><td>"+fmt0(co)+"</td><td>"+fmt0(ro)+"</td><td>"+fmt0(ar)+"</td><td>"+fmt0(cb)+"</td></tr>";
+    let ro=0,ar=0,cb=0,co=0,pmt=0;
+    for(let m=(y-1)*12+1;m<=y*12;m++){ro+=T0-roLine[m];ar+=roLine[m]-arLine[m];cb+=arLine[m]-net[m];co+=net[m];pmt+=pay[m];}
+    lostRO+=ro;lostAR+=ar;lostCB+=cb;coll+=co;payTot+=pmt;
+    const yearNet=co-pmt;running+=yearNet;
+    body+="<tr><td>Yr "+y+"</td><td>"+fmt0(co)+"</td><td>"+fmt0(ro)+"</td><td>"+fmt0(ar)+"</td><td>"+fmt0(cb)+"</td><td>"+(pmt>0?fmt0(-pmt):"$0")+'</td><td class="'+cls(yearNet)+'">'+fmt0(yearNet)+'</td><td class="'+cls(running)+'">'+fmt0(running)+"</td></tr>";
   }
   const pot=T0*H, pc=v=>' <span style="color:var(--faint);font-weight:500">('+(v/pot*100).toFixed(1)+'%)</span>';
-  body+='<tr style="font-weight:600"><td>Total</td><td>'+fmt0(coll)+pc(coll)+"</td><td>"+fmt0(lostRO)+pc(lostRO)+"</td><td>"+fmt0(lostAR)+pc(lostAR)+"</td><td>"+fmt0(lostCB)+pc(lostCB)+"</td></tr>";
+  body+='<tr style="font-weight:600"><td>Total</td><td>'+fmt0(coll)+pc(coll)+"</td><td>"+fmt0(lostRO)+pc(lostRO)+"</td><td>"+fmt0(lostAR)+pc(lostAR)+"</td><td>"+fmt0(lostCB)+pc(lostCB)+"</td><td>"+fmt0(-payTot)+'</td><td class="'+cls(coll-payTot)+'">'+fmt0(coll-payTot)+'</td><td class="'+cls(running)+'">'+fmt0(running)+"</td></tr>";
   $("leg2").innerHTML=
-    '<div style="overflow-x:auto"><table class="yr"><thead><tr><th>Year</th><th>'+sw("#F8ECCB")+'Collected (net)</th><th>'+sw("#F1CDBF")+'Run-off</th><th>'+sw("#C8DFF0")+'Arrears</th><th>'+sw("#E5A899")+'Clawback</th></tr></thead><tbody>'+body+"</tbody></table></div>"+
-    '<div class="hint" style="margin-top:6px">Dashed line = starting trail held flat (no losses). Gold line = what you actually collect each month. Total % = share of 10-year gross potential ('+fmt0(pot)+').</div>';
+    '<div style="overflow-x:auto"><table class="yr"><thead><tr><th>Year</th><th>'+sw("#F8ECCB")+'Collected (net)</th><th>'+sw("#F1CDBF")+'Run-off</th><th>'+sw("#C8DFF0")+'Arrears</th><th>'+sw("#E5A899")+'Clawback</th><th>Payments</th><th>Net</th><th>Cumulative</th></tr></thead><tbody>'+body+"</tbody></table></div>"+
+    '<div class="hint" style="margin-top:6px">Dashed line = starting trail held flat (no losses). Gold line = what you actually collect each month. Payments appear in the year they fall due under the selected payment option. Total % = share of 10-year gross potential ('+fmt0(pot)+').</div>';
 }
 
 function verdict(boxId,txtId,irr,hurdle){
