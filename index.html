@@ -252,6 +252,27 @@ table.yr td.pos{color:var(--green)}
       <div class="err" id="e-o4"></div>
     </div>
   </div>
+
+  <div class="opt" id="opt5">
+    <label class="opt-head"><input type="radio" name="popt" value="5">
+      <span class="opt-name">Option 5</span><span class="opt-desc">Custom $ amounts</span></label>
+    <div class="opt-body">
+      <div class="g2" style="margin-bottom:6px">
+        <div class="field"><label for="o5m1">Month</label><input type="number" id="o5m1" value="0" min="0" max="120" step="1"></div>
+        <div class="field"><label for="o5a1">Amount ($)</label><input type="number" id="o5a1" value="0" min="0" step="5000"></div>
+      </div>
+      <div class="g2" style="margin-bottom:6px">
+        <div class="field"><label for="o5m2">Month</label><input type="number" id="o5m2" value="12" min="0" max="120" step="1"></div>
+        <div class="field"><label for="o5a2">Amount ($)</label><input type="number" id="o5a2" value="0" min="0" step="5000"></div>
+      </div>
+      <div class="g2">
+        <div class="field"><label for="o5m3">Month</label><input type="number" id="o5m3" value="24" min="0" max="120" step="1"></div>
+        <div class="field"><label for="o5a3">Amount ($)</label><input type="number" id="o5a3" value="0" min="0" step="5000"></div>
+      </div>
+      <div class="hint" style="margin-top:6px">Purchase price = sum of the amounts. The multiple input is ignored; the implied multiple is shown in the summary.</div>
+      <div class="err" id="e-o5"></div>
+    </div>
+  </div>
 </div>
 
 <!-- ============ RIGHT: RESULTS ============ -->
@@ -348,32 +369,43 @@ const RO_BANDS=[[5,"Excellent","b-good"],[10,"Very good","b-good"],[15,"Average"
 const AR_BANDS=[[0.3,"Excellent","b-good"],[0.6,"Very good","b-good"],[0.9,"Good","b-good"],[1.2,"OK","b-mid"],[1.5,"Poor","b-bad"],[Infinity,"Alert","b-bad"]];
 const CB_BANDS=[[3,"Excellent","b-good"],[6,"Very good","b-good"],[9,"Good","b-good"],[12,"OK","b-mid"],[15,"Poor","b-bad"],[Infinity,"Alert","b-bad"]];
 
-/* ---- payment schedule builders: return [{m,frac}] or {err} ---- */
-function buildSchedule(){
+/* ---- payment schedule builders: return {price, pays:[{m,amt}]} or {err} ---- */
+function buildSchedule(basePrice){
   const sel=document.querySelector("input[name=popt]:checked").value;
-  ["e-o1","e-o2","e-o3","e-o4"].forEach(id=>$(id).textContent="");
+  ["e-o1","e-o2","e-o3","e-o4","e-o5"].forEach(id=>$(id).textContent="");
+  const fromFracs=fr=>({price:basePrice,pays:fr.map(x=>({m:x.m,amt:basePrice*x.frac}))});
   if(sel==="1"){
     const a=+$("o1a").value||0,b=+$("o1b").value||0,c=+$("o1c").value||0;
     if(Math.abs(a+b+c-100)>0.001){$("e-o1").textContent="Must sum to 100% (currently "+(a+b+c)+"%)";return {err:1};}
-    return [{m:0,frac:a/100},{m:12,frac:b/100},{m:24,frac:c/100}].filter(x=>x.frac>0);
+    return fromFracs([{m:0,frac:a/100},{m:12,frac:b/100},{m:24,frac:c/100}].filter(x=>x.frac>0));
   }
   if(sel==="2"){
     const n=Math.round(+$("o2n").value);
     if(!(n>=1&&n<=20)){$("e-o2").textContent="1–20 instalments";return {err:1};}
-    return Array.from({length:n},(_,i)=>({m:i*6,frac:1/n}));
+    return fromFracs(Array.from({length:n},(_,i)=>({m:i*6,frac:1/n})));
   }
   if(sel==="3"){
     const n=Math.round(+$("o3n").value);
     if(!(n>=1&&n<=120)){$("e-o3").textContent="1–120 instalments";return {err:1};}
-    return Array.from({length:n},(_,i)=>({m:i,frac:1/n}));
+    return fromFracs(Array.from({length:n},(_,i)=>({m:i,frac:1/n})));
   }
-  const rows=[[+$("o4m1").value,+$("o4p1").value||0],[+$("o4m2").value,+$("o4p2").value||0],[+$("o4m3").value,+$("o4p3").value||0]];
+  if(sel==="4"){
+    const rows=[[+$("o4m1").value,+$("o4p1").value||0],[+$("o4m2").value,+$("o4p2").value||0],[+$("o4m3").value,+$("o4p3").value||0]];
+    const tot=rows.reduce((s,r)=>s+r[1],0);
+    if(Math.abs(tot-100)>0.001){$("e-o4").textContent="Percentages must sum to 100% (currently "+tot+"%)";return {err:1};}
+    for(const [m] of rows) if(m<0||m>H||isNaN(m)){$("e-o4").textContent="Months must be 0–120";return {err:1};}
+    const merged={};
+    rows.filter(r=>r[1]>0).forEach(([m,p])=>{merged[m]=(merged[m]||0)+p/100;});
+    return fromFracs(Object.entries(merged).map(([m,frac])=>({m:+m,frac})).sort((x,y)=>x.m-y.m));
+  }
+  /* option 5: absolute $ amounts — their sum IS the purchase price */
+  const rows=[[+$("o5m1").value,+$("o5a1").value||0],[+$("o5m2").value,+$("o5a2").value||0],[+$("o5m3").value,+$("o5a3").value||0]];
   const tot=rows.reduce((s,r)=>s+r[1],0);
-  if(Math.abs(tot-100)>0.001){$("e-o4").textContent="Percentages must sum to 100% (currently "+tot+"%)";return {err:1};}
-  for(const [m] of rows) if(m<0||m>H||isNaN(m)){$("e-o4").textContent="Months must be 0–120";return {err:1};}
+  if(!(tot>0)){$("e-o5").textContent="Enter at least one $ amount";return {err:1};}
+  for(const [m,a] of rows) if(a>0&&(m<0||m>H||isNaN(m))){$("e-o5").textContent="Months must be 0–120";return {err:1};}
   const merged={};
-  rows.filter(r=>r[1]>0).forEach(([m,p])=>{merged[m]=(merged[m]||0)+p/100;});
-  return Object.entries(merged).map(([m,frac])=>({m:+m,frac})).sort((x,y)=>x.m-y.m);
+  rows.filter(r=>r[1]>0).forEach(([m,a])=>{merged[m]=(merged[m]||0)+a;});
+  return {price:tot,pays:Object.entries(merged).map(([m,amt])=>({m:+m,amt})).sort((x,y)=>x.m-y.m)};
 }
 
 /* ---- financial helpers ---- */
@@ -396,15 +428,15 @@ function calc(){
         mu=+$("mu").value, rr=+$("rr").value;
   rate("b-ro",ro,RO_BANDS);rate("b-ar",ar,AR_BANDS);rate("b-cb",cb,CB_BANDS);
 
+  const sel=document.querySelector("input[name=popt]:checked").value;
+  $("mu").disabled=(sel==="5");
   let ok=true;
   if(!(tr>0)){$("e-tr").textContent="Must be > $0";ok=false;}
   if(!(ro>=0&&ro<=100)){$("e-ro").textContent="0–100%";ok=false;}
   if(!(ar>=0&&ar<=100)){$("e-ar").textContent="0–100%";ok=false;}
-  if(!(mu>0)){$("e-mu").textContent="Must be > 0";ok=false;}
+  if(sel!=="5"&&!(mu>0)){$("e-mu").textContent="Must be > 0";ok=false;}
   if(!(rr>=0&&rr<=100)){$("e-rr").textContent="0–100%";ok=false;}
-  const sched=buildSchedule();
-  if(sched.err) ok=false;
-  if(!ok){eb.textContent="Fix the highlighted inputs to see results.";eb.classList.add("show");return;}
+  if(!ok){eb.textContent="Fix the highlighted inputs to see results.";eb.classList.add("show");buildSchedule(0);return;}
 
   /* dates: pm = trail month (day-count for pricing), sm = settlement month (cashflow start) */
   const now=new Date();
@@ -415,12 +447,15 @@ function calc(){
   const gstF=$("gst").value==="1"?1.1:1;
   const T0=tr*gstF;
   const dim=new Date(py,pmm,0).getDate(); // days in trail month
-  const price=T0/dim*365*mu;
+  const annTrail=T0/dim*365;
+  const bs=buildSchedule(annTrail*mu);
+  if(bs.err){eb.textContent="Fix the highlighted inputs to see results.";eb.classList.add("show");return;}
+  const price=bs.price;
   const cbMonthly=(cb/100)*cbr/CB_MONTHS;
 
   /* monthly engine */
   const pay=new Array(H+1).fill(0);
-  sched.forEach(({m,frac})=>pay[m]+=price*frac);
+  bs.pays.forEach(({m,amt})=>pay[m]+=amt);
   const cf=new Array(H+1).fill(0), cum=new Array(H+1).fill(0), trail=new Array(H+1).fill(0),
         roLine=new Array(H+1).fill(0), arLine=new Array(H+1).fill(0);
   let g=T0;
@@ -443,7 +478,9 @@ function calc(){
 
   /* ---- render summary ---- */
   $("r-price").textContent=fmt0(price);
-  $("r-price-sub").textContent=fmt0(T0)+"/mo ÷ "+dim+" days × 365 × "+mu+"×"+(gstF>1?" (incl. GST)":"");
+  $("r-price-sub").textContent=(sel==="5")
+    ?"Sum of custom payments — implied multiple "+(price/annTrail).toFixed(2)+"×"+(gstF>1?" (incl. GST)":"")
+    :fmt0(T0)+"/mo ÷ "+dim+" days × 365 × "+mu+"×"+(gstF>1?" (incl. GST)":"");
   if(be==null){$("r-be").textContent="Never";$("r-be-sub").textContent="Does not break even within 10 years";}
   else{const [by,bm]=monthAdd(sy,smm,be);$("r-be").textContent=be+" mo";$("r-be-sub").textContent=monthLabel(by,bm);}
   $("r-npv5").textContent=fmt0(npv5); $("r-npv9").textContent=fmt0(npv9);
@@ -451,9 +488,9 @@ function calc(){
   verdict("r-v5","r-v5t",npv5); verdict("r-v9","r-v9t",npv9);
 
   /* ---- payment schedule ---- */
-  $("sched").innerHTML=sched.map(({m,frac})=>{
-    const [py,pm]=monthAdd(sy,smm,m);
-    return '<div class="mrow"><span class="mlbl">'+(m===0?"At settlement":"Month "+m)+" — "+monthLabel(py,pm)+'</span><span class="mval">'+fmt0(price*frac)+" ("+(frac*100).toFixed(1).replace(/\.0$/,"")+"%)</span></div>";
+  $("sched").innerHTML=bs.pays.map(({m,amt})=>{
+    const [qy,qm]=monthAdd(sy,smm,m);
+    return '<div class="mrow"><span class="mlbl">'+(m===0?"At settlement":"Month "+m)+" — "+monthLabel(qy,qm)+'</span><span class="mval">'+fmt0(amt)+" ("+(amt/price*100).toFixed(1).replace(/\.0$/,"")+"%)</span></div>";
   }).join("")||'<div class="hint">No payments.</div>';
 
   /* ---- yearly table ---- */
