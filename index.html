@@ -179,6 +179,7 @@ table.yr td.pos{color:var(--green)}
         <input type="number" id="cbr" value="0" min="0" step="1000">
       </div>
     </div>
+    <div class="hint" id="cb-calc" style="font-weight:600;color:var(--gold-text)"></div>
     <div class="hint">$ at risk auto-fills as 100% of upfronts &lt;12 mo old + 50% of upfronts 12&ndash;24 mo old (all aggregators assumed same tiers for now) &mdash; or type it directly. Expected clawback = rate &times; $ at risk, spread over the first 24 months.</div>
   </div>
 
@@ -467,6 +468,9 @@ function calc(){
   if(bs.err){eb.textContent="Fix the highlighted inputs to see results.";eb.classList.add("show");return;}
   const price=bs.price;
   const cbMonthly=(cb/100)*(cbr*gstF)/CB_MONTHS;
+  $("cb-calc").textContent=(cb>0&&cbr>0)
+    ? cb+"% × "+fmt0(cbr*gstF)+" = "+fmt0(cb/100*cbr*gstF)+" expected clawback ("+fmt0(cbMonthly)+"/mo, months 1–24)"
+    : "";
 
   /* monthly engine: trail stream first */
   const cf=new Array(H+1).fill(0), cum=new Array(H+1).fill(0), trail=new Array(H+1).fill(0),
