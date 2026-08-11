@@ -274,6 +274,14 @@ table.yr td.pos{color:var(--green)}
       <div class="err" id="e-o5"></div>
     </div>
   </div>
+
+  <div class="card" style="margin-top:14px">
+    <div class="field">
+      <label for="gg">Revenue guarantee ($ per 12 months, 0 = none)</label>
+      <input type="number" id="gg" value="0" min="0" step="5000">
+    </div>
+    <div class="hint">If modelled revenue between two payments falls short of the guarantee (pro-rated to the gap), every $ of shortfall is deducted from the next instalment (2nd, 3rd, &hellip;), floored at $0. Requires a structure with more than one payment. Entered excl. GST.</div>
+  </div>
 </div>
 
 <!-- ============ RIGHT: RESULTS ============ -->
@@ -344,7 +352,10 @@ table.yr td.pos{color:var(--green)}
     NPV discounts monthly cashflows at the required return / 12. IRR is solved on monthly
     cashflows and annualised (effective); with instalment structures the cashflow changes sign
     more than once and IRR can be ambiguous, so the Accept/Reject verdict is based on NPV &gt; 0
-    at the required return. Breakeven is the month cumulative net cashflow
+    at the required return. Revenue guarantee: for each instalment after the first, if modelled
+    net trail collected since the previous payment falls short of the guarantee (pro-rated to the
+    window length), the shortfall is deducted dollar-for-dollar from that instalment, floored at $0.
+    Breakeven is the month cumulative net cashflow
     turns positive and stays positive. Model horizon 10 years (120 months).
   </div>
 </div>
@@ -457,17 +468,32 @@ function calc(){
   const price=bs.price;
   const cbMonthly=(cb/100)*(cbr*gstF)/CB_MONTHS;
 
-  /* monthly engine */
-  const pay=new Array(H+1).fill(0);
-  bs.pays.forEach(({m,amt})=>pay[m]+=amt);
+  /* monthly engine: trail stream first */
   const cf=new Array(H+1).fill(0), cum=new Array(H+1).fill(0), trail=new Array(H+1).fill(0),
         roLine=new Array(H+1).fill(0), arLine=new Array(H+1).fill(0);
   let g=T0;
   for(let m=0;m<=H;m++){
     let t=0;
     if(m>=1){ g*=1-(ro/100)/12; roLine[m]=g; arLine[m]=g*(1-ar/100); t=arLine[m]; if(m<=CB_MONTHS) t-=cbMonthly; }
-    trail[m]=t; cf[m]=t-pay[m]; cum[m]=(m?cum[m-1]:0)+cf[m];
+    trail[m]=t;
   }
+
+  /* revenue guarantee: shortfall vs guarantee since previous payment comes off the next instalment */
+  const paysAdj=bs.pays.map(p=>({m:p.m,amt:p.amt,ded:0}));
+  const ggRaw=+$("gg").value||0;
+  if(ggRaw>0){
+    const G=ggRaw*gstF;
+    for(let k=1;k<paysAdj.length;k++){
+      const w0=paysAdj[k-1].m, w1=paysAdj[k].m;
+      let act=0; for(let m=w0+1;m<=w1;m++) act+=trail[m];
+      const target=G*(w1-w0)/12;
+      const ded=Math.min(paysAdj[k].amt, Math.max(0, target-act));
+      paysAdj[k].ded=ded; paysAdj[k].amt-=ded;
+    }
+  }
+  const pay=new Array(H+1).fill(0);
+  paysAdj.forEach(({m,amt})=>pay[m]+=amt);
+  for(let m=0;m<=H;m++){ cf[m]=trail[m]-pay[m]; cum[m]=(m?cum[m-1]:0)+cf[m]; }
 
   /* breakeven: first month from which cumulative stays >= 0 */
   let be=null;
@@ -492,10 +518,14 @@ function calc(){
   verdict("r-v5","r-v5t",npv5); verdict("r-v9","r-v9t",npv9);
 
   /* ---- payment schedule ---- */
-  $("sched").innerHTML=bs.pays.map(({m,amt})=>{
+  const dedTot=paysAdj.reduce((s,p)=>s+p.ded,0);
+  $("sched").innerHTML=(paysAdj.map(({m,amt,ded})=>{
     const [qy,qm]=monthAdd(sy,smm,m);
-    return '<div class="mrow"><span class="mlbl">'+(m===0?"At settlement":"Month "+m)+" — "+monthLabel(qy,qm)+'</span><span class="mval">'+fmt0(amt)+" ("+(amt/price*100).toFixed(1).replace(/\.0$/,"")+"%)</span></div>";
-  }).join("")||'<div class="hint">No payments.</div>';
+    return '<div class="mrow"><span class="mlbl">'+(m===0?"At settlement":"Month "+m)+" — "+monthLabel(qy,qm)+
+      (ded>0?' <span style="color:var(--warn);font-weight:600">(guarantee −'+fmt0(ded).replace("$","$")+")</span>":"")+
+      '</span><span class="mval">'+fmt0(amt)+" ("+(amt/price*100).toFixed(1).replace(/\.0$/,"")+"%)</span></div>";
+  }).join("")||'<div class="hint">No payments.</div>')+
+  (dedTot>0?'<div class="mrow" style="border-top:1px solid var(--panel-border)"><span class="mlbl" style="font-weight:600">Effective price after guarantee deductions</span><span class="mval">'+fmt0(price-dedTot)+'</span></div>':"");
 
   /* ---- yearly table ---- */
   let rows="";
